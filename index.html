@@ -140,14 +140,10 @@
       const div = document.getElementById('departures');
 
       let html = '<h2>Vertrektijden</h2>';
-      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Tussenstations</th></tr>';
+      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th></tr>';
       departures.slice(0, 20).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
-
-        // Alleen de komende 5 stations
-        const nextStations = dep.route ? dep.route.slice(0, 5).map(station => station.name).join(' → ') : 'Onbekend';
-
-        html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td><td>${nextStations}</td></tr>`;
+        html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
       });
       html += '</table>';
 
@@ -183,7 +179,7 @@
         const data = await res.json();
 
         const div = document.getElementById('train-schedule');
-        div.style.display = 'block';  // Zorg ervoor dat de dienstregeling zichtbaar is
+        div.style.display = 'block';
 
         let html = `<h2>Dienstregeling van trein ${input}</h2>`;
         html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Peron</th></tr>';
