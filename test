@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Realtime NMBS Vertrektijden</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 1rem;
+    }
+    h1 { text-align: center; }
+    #input-container {
+      position: fixed; top: 60px; left: 10px;
+      background: #fff; padding: 0.5rem;
+      border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    #content-container {
+      display: flex; justify-content: center;
+      gap: 1rem; flex-wrap: wrap; margin-top: 1rem;
+    }
+    #departures { order:1; flex:1 1 45%; }
+    #train-schedule { order:2; flex:1 1 45%; display:none; }
+    #departures, #train-schedule {
+      background: white; border-radius: 8px;
+      padding: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 300px;
+    }
+    table { width:100%; border-collapse:collapse; }
+    th, td {
+      padding:0.5rem; text-align:left;
+      border-bottom:1px solid #ccc;
+    }
+    .delay { color:red; font-weight:bold; }
+    #status {
+      text-align:center; margin-top:1rem; color:#555; width:100%;
+    }
+    #clock {
+      position:fixed; top:10px; left:10px;
+      background:#222; color:#fff;
+      padding:0.5rem 1rem; border-radius:6px;
+      font-weight:bold; font-size:1rem;
+      z-index:1000; font-family:monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="clock">00:00:00</div>
+
+  <div id="input-container">
+    <label for="train-input">Vul treinnummer in:</label>
+    <input type="text" id="train-input" placeholder="Bijv. IC2310" />
+    <button onclick="zoekTrein()">Zoek</button>
+  </div>
+
+  <h1>Realtime NMBS Vertrektijden</h1>
+  <div id="status">Locatie bepalen...</div>
+  <div id="content-container">
+    <div id="departures"></div>
+    <div id="train-schedule"></div>
+  </div>
+
+  <script>
+    // Klok
+    function updateClock() {
+      document.getElementById('clock').textContent =
+        new Date().toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }
+    setInterval(updateClock,1000);
+    updateClock();
+
+    // Spoorlijn-mapping (vul zelf aan)
+    const lineMap = {
+      // 'Brussel-Noord-Aalst': '50',
+      // 'Gent-Sint-Pieters-Brussel-Zuid': '50A',
+    };
+
+    function setTrainScheduleVisible(vis) {
+      document.getElementById('train-schedule').style.display = vis ? 'block' : 'none';
+    }
+
+    async function getNearestStation(lat, lon) {
+      const res = await fetch('https://api.irail.be/stations/?format=json&lang=nl');
+      const data = await res.json();
+      let nearest=null, minDist=Infinity;
+      data.station.forEach(st=>{
+        if(!st.locationX||!st.locationY) return;
+        const dx=lat-+st.locationY, dy=lon-+st.locationX;
+        const d=Math.hypot(dx,dy);
+        if(d<minDist){minDist=d; nearest=st;}
+      });
+      return nearest;
+    }
+
+    async function getDepartures(stationName) {
+      const res = await fetch(
+        `https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`
+      );
+      const data = await res.json();
+      return data.departures.departure;
+    }
+
+    async function displayDepartures(station, departures) {
+      document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
+      let html=`<h2>Vertrektijden van ${station.name}</h2>`;
+      html+='<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Vertraging</th><th>Spoorlijn</th></tr>';
+      departures.slice(0,20).forEach(dep=>{
+        const time=new Date(dep.time*1000).
+          toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'});
+        const delay=dep.delay?`<span class='delay'>${dep.delay} min</span>`:'-';
+        const key=`${station.name}-${dep.station}`;
+        const line=lineMap[key]||'-';
+        html+=`<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform||'-'}</td><td>${delay}</td><td>${line}</td></tr>`;
+      });
+      html+='</table>';
+      document.getElementById('departures').innerHTML=html;
+    }
+
+    function showError(msg){document.getElementById('status').innerText=`Fout: ${msg}`;}
+
+    async function locateAndUpdate(){
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        try{
+          const station=await getNearestStation(pos.coords.latitude,pos.coords.longitude);
+          const deps=await getDepartures(station.name);
+          await displayDepartures(station,deps);
+        }catch(e){showError('Kon geen vertrektijden ophalen.'); console.error(e);}        
+      },()=>showError('Locatie niet beschikbaar.'));
+    }
+
+    async function zoekTrein(){
+      const inp=document.getElementById('train-input').value.trim().toUpperCase();
+      if(!inp) return;
+      const id=inp.startsWith('BE.NMBS.')?inp:`BE.NMBS.${inp}`;
+      try{
+        const res=await fetch(`https://api.irail.be/vehicle/?id=${id}&format=json&lang=nl`);
+        const data=await res.json();
+        let html=`<h2>Dienstregeling van trein ${inp}</h2>`;
+        html+='<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Peron</th></tr>';
+        data.stops.stop.forEach(s=>{
+          const arr=s.arrival?new Date(s.arrival*1000).
+            toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}):'-';
+          const dep=s.departure?new Date(s.departure*1000).
+            toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}):'-';
+          html+=`<tr><td>${s.station}</td><td>${arr}</td><td>${dep}</td><td>${s.platform||'-'}</td></tr>`;
+        });
+        html+='</table>';
+        document.getElementById('train-schedule').innerHTML=html;
+        setTrainScheduleVisible(true);
+      }catch(e){showError('Trein niet gevonden.'); setTrainScheduleVisible(false); console.error(e);}      
+    }
+
+    locateAndUpdate();setInterval(locateAndUpdate,30000);setTrainScheduleVisible(false);
+  </script>
+</body>
+</html>
