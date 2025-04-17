@@ -72,6 +72,11 @@
       z-index: 1000;
       font-family: monospace;
     }
+    .clickable {
+      cursor: pointer;
+      color: #007BFF;
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -87,7 +92,7 @@
   <div id="status">Locatie bepalen...</div>
   <div id="content-container">
     <div id="departures"></div>
-    <div id="train-schedule"></div>
+    <div id="train-schedule" style="display: none;"></div>
   </div>
 
   <script>
@@ -121,18 +126,9 @@
     }
 
     async function getDepartures(stationName) {
-      try {
-        const res = await fetch(`https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`);
-        const data = await res.json();
-        if (data.departures && data.departures.departure) {
-          return data.departures.departure;
-        } else {
-          throw new Error('Geen vertrektijden gevonden');
-        }
-      } catch (err) {
-        console.error('Fout bij ophalen vertrektijden:', err);
-        throw new Error('Er is een fout opgetreden bij het ophalen van vertrektijden.');
-      }
+      const res = await fetch(`https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`);
+      const data = await res.json();
+      return data.departures?.departure || [];
     }
 
     function displayDepartures(station, departures) {
@@ -143,7 +139,7 @@
       html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th></tr>';
       departures.slice(0, 20).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
-        html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
+        html += `<tr class="clickable" onclick="zoekTreinViaLink('${dep.vehicle}')"><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
       });
       html += '</table>';
 
@@ -169,19 +165,18 @@
       });
     }
 
-    async function zoekTrein() {
-      const input = document.getElementById('train-input').value.trim().toUpperCase();
-      if (!input.startsWith('BE.NMBS.')) inputFull = `BE.NMBS.${input}`;
-      else inputFull = input;
+    async function zoekTrein(id = null) {
+      let input = id || document.getElementById('train-input').value.trim().toUpperCase();
+      if (!input.startsWith('BE.NMBS.')) input = `BE.NMBS.${input}`;
 
       try {
-        const res = await fetch(`https://api.irail.be/vehicle/?id=${inputFull}&format=json&lang=nl`);
+        const res = await fetch(`https://api.irail.be/vehicle/?id=${input}&format=json&lang=nl`);
         const data = await res.json();
 
         const div = document.getElementById('train-schedule');
         div.style.display = 'block';
 
-        let html = `<h2>Dienstregeling van trein ${input}</h2>`;
+        let html = `<h2>Dienstregeling van trein ${data.vehicle}</h2>`;
         html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Peron</th></tr>';
         for (const stop of data.stops.stop) {
           const arr = stop.arrival ? new Date(stop.arrival * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
@@ -194,6 +189,10 @@
         showError('Trein niet gevonden.');
         console.error(err);
       }
+    }
+
+    function zoekTreinViaLink(vehicleId) {
+      zoekTrein(vehicleId);
     }
 
     locateAndUpdate();
