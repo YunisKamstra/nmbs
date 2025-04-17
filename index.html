@@ -121,9 +121,18 @@
     }
 
     async function getDepartures(stationName) {
-      const res = await fetch(`https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`);
-      const data = await res.json();
-      return data.departures.departure;
+      try {
+        const res = await fetch(`https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`);
+        const data = await res.json();
+        if (data.departures && data.departures.departure) {
+          return data.departures.departure;
+        } else {
+          throw new Error('Geen vertrektijden gevonden');
+        }
+      } catch (err) {
+        console.error('Fout bij ophalen vertrektijden:', err);
+        throw new Error('Er is een fout opgetreden bij het ophalen van vertrektijden.');
+      }
     }
 
     function displayDepartures(station, departures) {
@@ -134,9 +143,9 @@
       html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Tussenstations</th></tr>';
       departures.slice(0, 20).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
-        
+
         // Alleen de komende 5 stations
-        const nextStations = dep.route.slice(0, 5).map(station => station.name).join(' → ');
+        const nextStations = dep.route ? dep.route.slice(0, 5).map(station => station.name).join(' → ') : 'Onbekend';
 
         html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td><td>${nextStations}</td></tr>`;
       });
@@ -157,8 +166,7 @@
           const departures = await getDepartures(station.name);
           displayDepartures(station, departures);
         } catch (err) {
-          showError('Kon geen vertrektijden ophalen.');
-          console.error(err);
+          showError(err.message);
         }
       }, err => {
         showError('Locatie niet beschikbaar.');
