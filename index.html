@@ -1,268 +1,218 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Realtime NMBS Vertrektijden</title>
+  <meta charset="UTF-8">
+  <title>Dienstregeling Zoeker</title>
   <style>
     body {
-      font-family: sans-serif;
-      background: #f4f4f4;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
       margin: 0;
-      padding: 1rem;
     }
-    h1 {
-      text-align: center;
-    }
-    #input-container {
-      position: fixed;
-      top: 60px;
-      left: 10px;
-      background: #fff;
-      padding: 0.5rem;
-      border-radius: 6px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    #content-container {
+
+    /* Container wrapper die beide containers naast elkaar plaatst */
+    .wrapper {
       display: flex;
       justify-content: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-      margin-top: 1rem;
+      align-items: flex-start;
+      width: 100%;
+      max-width: 1200px;
     }
-    #departures, #train-schedule {
-      flex: 1 1 45%;
+
+    .container {
       background: white;
-      border-radius: 8px;
-      padding: 1rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      min-width: 300px;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 0.5rem;
-      text-align: left;
-      border-bottom: 1px solid #ccc;
-    }
-    #status {
+      padding: 2em;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      width: 45%;
+      max-width: 600px;
       text-align: center;
-      margin-top: 1rem;
-      color: #555;
+      transition: background-color 0.3s ease;
+      margin-right: 20px; /* Ruimte tussen de containers */
+    }
+
+    .map-container {
+      width: 45%;
+      height: 500px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    .error-blink {
+      animation: blinkRed 0.5s ease-in-out 2;
+    }
+
+    @keyframes blinkRed {
+      0%, 100% { background-color: white; }
+      25%, 75% { background-color: #ffcccc; }
+    }
+
+    input, select, button {
+      margin-top: 1em;
       width: 100%;
+      padding: 0.5em;
+      font-size: 1em;
     }
-    #clock {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      background: #222;
-      color: #fff;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
+
+    .result {
+      margin-top: 2em;
+      text-align: left;
+    }
+
+    .error-message {
+      color: red;
       font-weight: bold;
-      font-size: 1rem;
-      z-index: 1000;
-      font-family: monospace;
+      margin-top: 1em;
     }
-    .clickable {
-      cursor: pointer;
-      color: #007BFF;
-      text-decoration: underline;
-    }
-    .selected-row {
-      background-color: #d4edda !important;
-    }
-    #tabs {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 1rem;
-    }
-    #tabs button {
-      padding: 0.5rem 1rem;
-      margin: 0.5rem;
-      cursor: pointer;
-      background-color: #007BFF;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      font-size: 1rem;
+
+    .departure-times {
+      margin-top: 2em;
+      text-align: left;
     }
   </style>
-  <!-- Leaflet CSS and JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 </head>
 <body>
-  <div id="clock">00:00:00</div>
+  <!-- Wrapper die de twee containers naast elkaar plaatst -->
+  <div class="wrapper">
+    <!-- De eerste container met dienstregeling -->
+    <div class="container" id="container">
+      <h2>Zoek een dienstregeling</h2>
+      <input type="text" id="trainNumber" placeholder="Voer treinnummer in">
 
-  <div id="input-container">
-    <label for="train-input">Vul treinnummer in:</label>
-    <input type="text" id="train-input" placeholder="Bijv. IC2310" />
-    <button onclick="zoekTrein()">Zoek</button>
-  </div>
+      <select id="provider">
+        <option value="nmbs">NMBS</option>
+        <option value="ns">NS (niet actief)</option>
+      </select>
 
-  <h1>Realtime NMBS Vertrektijden</h1>
-  <div id="status">Locatie bepalen...</div>
-  <div id="tabs">
-    <button onclick="showDepartures()">Vertrektijden</button>
-    <button onclick="showMap()">Live Kaart</button>
-  </div>
-  <div id="content-container">
-    <div id="departures"></div>
-    <div id="train-schedule" style="display: none;"></div>
-  </div>
+      <button onclick="getSchedule()">Bekijk dienstregeling</button>
 
-  <!-- Live kaart sectie -->
-  <div id="map-tab" style="display: none;">
-    <div id="map" style="height: 400px;"></div>
+      <div class="result" id="scheduleResult"></div>
+      <div class="departure-times" id="departureTimes"></div>
+    </div>
+
+    <!-- De tweede container met de kaart -->
+    <div id="map" class="map-container"></div>
   </div>
 
   <script>
-    function updateClock() {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(now.getMinutes()).padStart(2, '0');
-      const s = String(now.getSeconds()).padStart(2, '0');
-      document.getElementById('clock').textContent = `${h}:${m}:${s}`;
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
+    async function getSchedule() {
+      const trainNumber = document.getElementById("trainNumber").value.trim();
+      const provider = document.getElementById("provider").value;
+      const resultDiv = document.getElementById("scheduleResult");
+      const container = document.getElementById("container");
+      const departureTimesDiv = document.getElementById("departureTimes");
 
-    let selectedRow = null;
+      resultDiv.innerHTML = "";
+      departureTimesDiv.innerHTML = "";  // reset departure times section
 
-    async function getNearestStation(lat, lon) {
-      const res = await fetch('https://api.irail.be/stations/?format=json&lang=nl');
-      const data = await res.json();
-      let nearest = null;
-      let minDistance = Infinity;
+      if (!trainNumber) {
+        container.classList.add("error-blink");
+        resultDiv.innerHTML = `<div class="error-message">❌ Vul een treinnummer in! ❌</div>`;
+        setTimeout(() => container.classList.remove("error-blink"), 1000);
+        return;
+      }
 
-      for (const station of data.station) {
-        if (!station.locationX || !station.locationY) continue;
-        const dx = lat - parseFloat(station.locationY);
-        const dy = lon - parseFloat(station.locationX);
-        const distance = Math.sqrt(dx*dx + dy*dy);
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearest = station;
+      if (provider === "nmbs") {
+        try {
+          const response = await fetch(`https://api.irail.be/vehicle/?id=BE.NMBS.${trainNumber}&format=json`);
+
+          if (!response.ok) throw new Error();
+
+          const data = await response.json();
+
+          if (!data.stops || !data.stops.stop) throw new Error();
+
+          let html = `<h3>NMBS Dienstregeling voor trein ${trainNumber}</h3><ul>`;
+          for (const stop of data.stops.stop) {
+            const station = stop.station;
+            const arrival = stop.arrival ? new Date(stop.arrival * 1000).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : "-";
+            const departure = stop.departure ? new Date(stop.departure * 1000).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : "-";
+            const platform = stop.platform || "Onbekend";  // Platforminformatie toegevoegd
+            html += `<li onclick="getDepartureTimes('${station}')"><strong>${station}</strong>: vertrek ${departure}, aankomst ${arrival}, perron ${platform}</li>`;
+          }
+          html += "</ul>";
+          resultDiv.innerHTML = html;
+
+        } catch (error) {
+          container.classList.add("error-blink");
+          resultDiv.innerHTML = `<div class="error-message">❌ Het treinnummer bestaat niet of er is een fout opgetreden! ❌</div>`;
+          setTimeout(() => container.classList.remove("error-blink"), 1000);
         }
       }
-      return nearest;
+
+      else {
+        resultDiv.innerHTML = "NS-dienstregeling is nog niet actief.";
+      }
     }
 
-    async function getDepartures(stationName) {
-      const res = await fetch(`https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`);
-      const data = await res.json();
-      return data.departures?.departure || [];
-    }
-
-    function displayDepartures(station, departures) {
-      document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
-      const div = document.getElementById('departures');
-
-      let html = '<h2>Vertrektijden</h2>';
-      html += '<table><tr><th>Type</th><th>Bestemming</th><th>Vertrek</th><th>Perron</th></tr>';
-      departures.slice(0, 5).forEach((dep, index) => {
-        const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
-        const trainType = dep.vehicle?.split('.')[2] || '-';
-        html += `<tr class="clickable" onclick="zoekTreinViaLink('${dep.vehicle}', this)"><td>${trainType}</td><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
-      });
-      html += '</table>';
-
-      div.innerHTML = html;
-    }
-
-    function showError(message) {
-      document.getElementById('status').innerText = `Fout: ${message}`;
-    }
-
-    function locateAndUpdate() {
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const { latitude, longitude } = pos.coords;
-        try {
-          const station = await getNearestStation(latitude, longitude);
-          const departures = await getDepartures(station.name);
-          displayDepartures(station, departures);
-        } catch (err) {
-          showError(err.message);
-        }
-      }, err => {
-        showError('Locatie niet beschikbaar.');
-      });
-    }
-
-    async function zoekTrein(id = null) {
-      let input = id || document.getElementById('train-input').value.trim().toUpperCase();
-      if (!input.startsWith('BE.NMBS.')) input = `BE.NMBS.${input}`;
+    // Nieuwe functie om vertrektijden vanaf een station op te halen
+    async function getDepartureTimes(station) {
+      const departureTimesDiv = document.getElementById("departureTimes");
 
       try {
-        const res = await fetch(`https://api.irail.be/vehicle/?id=${input}&format=json&lang=nl`);
-        const data = await res.json();
+        const response = await fetch(`https://api.irail.be/departures/?station=${station}&format=json`);
 
-        const div = document.getElementById('train-schedule');
-        div.style.display = 'block';
-
-        let html = `<h2>Dienstregeling van trein ${data.vehicle}</h2>`;
-        html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Perron</th></tr>';
-        for (const stop of data.stops.stop) {
-          if (!stop.stationinfo || !stop.stationinfo.id.startsWith('BE.')) continue;
-          const arr = stop.arrival ? new Date(stop.arrival * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
-          const dep = stop.departure ? new Date(stop.departure * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
-          html += `<tr><td>${stop.station}</td><td>${arr}</td><td>${dep}</td><td>${stop.platform || '-'}</td></tr>`;
+        if (!response.ok) {
+          departureTimesDiv.innerHTML = `<div class="error-message">❌ Geen vertrektijden beschikbaar voor station ${station}. ❌</div>`;
+          return;
         }
-        html += '</table>';
-        div.innerHTML = html;
-      } catch (err) {
-        showError('Trein niet gevonden.');
-        console.error(err);
+
+        const data = await response.json();
+
+        if (!data.departures || !data.departures.departure) {
+          departureTimesDiv.innerHTML = `<div class="error-message">❌ Geen vertrekkende treinen gevonden voor station ${station}. ❌</div>`;
+          return;
+        }
+
+        let html = `<h3>Vertrektijden vanaf station ${station}</h3><ul>`;
+        for (const departure of data.departures.departure) {
+          const trainNumber = departure.train;
+          const departureTime = new Date(departure.departure * 1000).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" });
+          const platform = departure.platform || "Onbekend";
+          html += `<li><strong>Trein ${trainNumber}</strong>: Vertrek ${departureTime} vanaf ${platform}</li>`;
+        }
+        html += "</ul>";
+        departureTimesDiv.innerHTML = html;
+
+      } catch (error) {
+        departureTimesDiv.innerHTML = `<div class="error-message">❌ Er is een probleem opgetreden bij het ophalen van vertrektijden voor station ${station}. ❌</div>`;
       }
     }
 
-    function zoekTreinViaLink(vehicleId, rowElement) {
-      zoekTrein(vehicleId);
-      if (selectedRow) selectedRow.classList.remove('selected-row');
-      if (rowElement) {
-        rowElement.classList.add('selected-row');
-        selectedRow = rowElement;
-      }
-    }
+    // Functie voor geolocatie en het tonen van de kaart
+    function showMap(lat, lon) {
+      const map = L.map('map').setView([lat, lon], 13);
 
-    function showMap() {
-      const mapTab = document.getElementById('map-tab');
-      mapTab.style.display = 'block';
-
-      const map = L.map('map').setView([50.8503, 4.3517], 13);
-
+      // Voeg OpenRailwayMap toe
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
 
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-
-          const marker = L.marker([lat, lon]).addTo(map)
-            .bindPopup('Jouw huidige locatie')
-            .openPopup();
-
-          map.setView([lat, lon], 13);
-        });
-      } else {
-        alert("Geolocatie wordt niet ondersteund door deze browser.");
-      }
+      // Voeg een marker toe voor de huidige locatie
+      L.marker([lat, lon]).addTo(map)
+        .bindPopup('Je huidige locatie')
+        .openPopup();
     }
 
-    function showDepartures() {
-      document.getElementById('departures').style.display = 'block';
-      document.getElementById('map-tab').style.display = 'none';
+    // Krijg de huidige locatie van de gebruiker
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(position) {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        showMap(lat, lon);
+      }, function(error) {
+        console.error('Fout bij het verkrijgen van de locatie', error);
+      });
+    } else {
+      console.log("Geolocatie wordt niet ondersteund door deze browser.");
     }
-
-    locateAndUpdate();
-    setInterval(locateAndUpdate, 30000);
   </script>
+
+  <!-- Voeg Leaflet.js toe voor kaarten -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 </body>
 </html>
