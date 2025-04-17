@@ -134,7 +134,10 @@
       html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Tussenstations</th></tr>';
       departures.slice(0, 20).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
+        
+        // Alleen de komende 5 stations
         const nextStations = dep.route.slice(0, 5).map(station => station.name).join(' → ');
+
         html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td><td>${nextStations}</td></tr>`;
       });
       html += '</table>';
