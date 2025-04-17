@@ -180,6 +180,7 @@
         let html = `<h2>Dienstregeling van trein ${data.vehicle}</h2>`;
         html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Perron</th></tr>';
         for (const stop of data.stops.stop) {
+          if (!stop.stationinfo || !stop.stationinfo.id.startsWith('BE.')) continue;
           const arr = stop.arrival ? new Date(stop.arrival * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
           const dep = stop.departure ? new Date(stop.departure * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
           html += `<tr><td>${stop.station}</td><td>${arr}</td><td>${dep}</td><td>${stop.platform || '-'}</td></tr>`;
