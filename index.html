@@ -106,12 +106,11 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Toon of verberg trein-dienstregelkader
+    // Toon of verberg dienstregelingskader
     function setTrainScheduleVisible(vis) {
       document.getElementById('train-schedule').style.display = vis ? 'block' : 'none';
     }
 
-    // Haal dichtsbijzijnd station op
     async function getNearestStation(lat, lon) {
       const res = await fetch('https://api.irail.be/stations/?format=json&lang=nl');
       const data = await res.json();
@@ -125,7 +124,6 @@
       return nearest;
     }
 
-    // Haal liveboard vertrektijden op
     async function getDepartures(stationName) {
       const res = await fetch(
         `https://api.irail.be/liveboard/?station=${encodeURIComponent(stationName)}&format=json&lang=nl&arrdep=departure`
@@ -134,65 +132,54 @@
       return data.departures.departure;
     }
 
-    // Toon vertrektijden + alle tussenstations per trein
+    // Toon vertrektijden + alle tussenstations (namen)
     async function displayDepartures(station, departures) {
       document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
 
-      // Voor alle vertrekkende treinen, haal de tussenstations op
-      const stationPathsMap = {};
+      // Map vehicleId → lijst van tussenstations (namen)
+      const stationNamesMap = {};
       await Promise.all(departures.map(async dep => {
         if (!dep.vehicle) return;
         try {
           const vid = dep.vehicle;
           const res = await fetch(`https://api.irail.be/vehicle/?id=${vid}&format=json&lang=nl`);
           const info = await res.json();
-          // Haal alle tussenstations
-          const stops = info.stops.stop;
-          stationPathsMap[vid] = stops.map(s => ({
-            station: s.station,
-            arrival: s.arrival ? new Date(s.arrival * 1000).toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'}) : '-',
-            departure: s.departure ? new Date(s.departure * 1000).toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'}) : '-',
-            platform: s.platform || '-'
-          }));
+          // Alle stations verzamelen
+          stationNamesMap[vid] = info.stops.stop.map(s => s.station);
         } catch (e) {
-          console.warn('Paths opvragen mislukt voor', dep.vehicle);
+          console.warn('Stations ophalen mislukt voor', dep.vehicle);
         }
       }));
 
-      // Bouw HTML-tabel
       let html = `<h2>Vertrektijden van ${station.name}</h2>`;
-      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Vertraging</th><th>Stations</th></tr>';
-      for (let i = 0; i < departures.length && i < 20; i++) {
-        const dep = departures[i];
-        const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'});
+      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Vertraging</th><th>Tussenstations</th></tr>';
+      departures.slice(0,20).forEach(dep => {
+        const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'});
         const delay = dep.delay ? `<span class="delay">${dep.delay} min</span>` : '-';
-        let paths = '-';
-        if (dep.vehicle && stationPathsMap[dep.vehicle]) {
-          // Toon alle tussenstations van de trein
-          const stations = stationPathsMap[dep.vehicle].map(s => 
-            `${s.station} (Aankomst: ${s.arrival}, Vertrek: ${s.departure}, Peron: ${s.platform})`
-          ).join(' → ');
-          paths = stations;
+        let stations = '-';
+        if (dep.vehicle && stationNamesMap[dep.vehicle]) {
+          // Toon alle volgende stations behalve huidige
+          stations = stationNamesMap[dep.vehicle]
+            .filter(name => name !== station.name)
+            .join(' → ');
         }
         html += `<tr>
                    <td>${dep.station}</td>
                    <td>${time}</td>
                    <td>${dep.platform || '-'}</td>
                    <td>${delay}</td>
-                   <td>${paths}</td>
+                   <td>${stations}</td>
                  </tr>`;
-      }
+      });
       html += '</table>';
 
       document.getElementById('departures').innerHTML = html;
     }
 
-    // Foutmelding
     function showError(msg) {
       document.getElementById('status').innerText = `Fout: ${msg}`;
     }
 
-    // Locatie bepalen en verversen
     async function locateAndUpdate() {
       navigator.geolocation.getCurrentPosition(async pos => {
         try {
@@ -206,7 +193,6 @@
       }, () => showError('Locatie niet beschikbaar.'));
     }
 
-    // Zoekdienstregeling
     async function zoekTrein() {
       const input = document.getElementById('train-input').value.trim().toUpperCase();
       if (!input) return;
@@ -235,7 +221,6 @@
       }
     }
 
-    // Initialisatie
     locateAndUpdate();
     setInterval(locateAndUpdate, 30000);
     setTrainScheduleVisible(false);
