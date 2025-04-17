@@ -32,13 +32,13 @@
     }
     #departures {
       order: 1;
-      max-height: 12rem;
+      max-height: 80vh;
       overflow-y: auto;
     }
     #train-schedule {
       order: 2;
     }
-    #departures, #train-schedule {
+    #departures, #train-schedule, #map-tab {
       flex: 1 1 45%;
       background: white;
       border-radius: 8px;
@@ -82,7 +82,25 @@
     .selected-row {
       background-color: #d4edda !important;
     }
+    #tabs {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    #tabs button {
+      padding: 0.5rem 1rem;
+      margin: 0.5rem;
+      cursor: pointer;
+      background-color: #007BFF;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
   </style>
+  <!-- Leaflet CSS and JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 </head>
 <body>
   <div id="clock">00:00:00</div>
@@ -95,9 +113,18 @@
 
   <h1>Realtime NMBS Vertrektijden</h1>
   <div id="status">Locatie bepalen...</div>
+  <div id="tabs">
+    <button onclick="showDepartures()">Vertrektijden</button>
+    <button onclick="showMap()">Live Kaart</button>
+  </div>
   <div id="content-container">
     <div id="departures"></div>
     <div id="train-schedule" style="display: none;"></div>
+  </div>
+
+  <!-- Live kaart sectie -->
+  <div id="map-tab" style="display: none;">
+    <div id="map" style="height: 400px;"></div>
   </div>
 
   <script>
@@ -144,7 +171,7 @@
 
       let html = '<h2>Vertrektijden</h2>';
       html += '<table><tr><th>Type</th><th>Bestemming</th><th>Vertrek</th><th>Perron</th></tr>';
-      departures.slice(0, 20).forEach((dep, index) => {
+      departures.slice(0, 5).forEach((dep, index) => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
         const trainType = dep.vehicle?.split('.')[2] || '-';
         html += `<tr class="clickable" onclick="zoekTreinViaLink('${dep.vehicle}', this)"><td>${trainType}</td><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
@@ -207,6 +234,37 @@
         rowElement.classList.add('selected-row');
         selectedRow = rowElement;
       }
+    }
+
+    function showMap() {
+      const mapTab = document.getElementById('map-tab');
+      mapTab.style.display = 'block';
+
+      const map = L.map('map').setView([50.8503, 4.3517], 13);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+
+          const marker = L.marker([lat, lon]).addTo(map)
+            .bindPopup('Jouw huidige locatie')
+            .openPopup();
+
+          map.setView([lat, lon], 13);
+        });
+      } else {
+        alert("Geolocatie wordt niet ondersteund door deze browser.");
+      }
+    }
+
+    function showDepartures() {
+      document.getElementById('departures').style.display = 'block';
+      document.getElementById('map-tab').style.display = 'none';
     }
 
     locateAndUpdate();
