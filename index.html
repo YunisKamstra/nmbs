@@ -99,11 +99,10 @@
   <script>
     // Klok
     function updateClock() {
-      const now = new Date();
       document.getElementById('clock').textContent =
-        now.toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        new Date().toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     }
-    setInterval(updateClock, 1000);
+    setInterval(updateClock,1000);
     updateClock();
 
     // Toon of verberg dienstregelingskader
@@ -114,12 +113,12 @@
     async function getNearestStation(lat, lon) {
       const res = await fetch('https://api.irail.be/stations/?format=json&lang=nl');
       const data = await res.json();
-      let nearest = null, minDist = Infinity;
-      data.station.forEach(st => {
-        if (!st.locationX || !st.locationY) return;
-        const dx = lat - +st.locationY, dy = lon - +st.locationX;
-        const dist = Math.hypot(dx, dy);
-        if (dist < minDist) { minDist = dist; nearest = st; }
+      let nearest=null, minDist=Infinity;
+      data.station.forEach(st=>{
+        if(!st.locationX||!st.locationY) return;
+        const dx=lat-+st.locationY, dy=lon-+st.locationX;
+        const d=Math.hypot(dx,dy);
+        if(d<minDist){minDist=d; nearest=st;}
       });
       return nearest;
     }
@@ -132,7 +131,7 @@
       return data.departures.departure;
     }
 
-    // Toon vertrektijden + alle tussenstations (namen)
+    // Toon vertrektijden + tussenstations (namen)
     async function displayDepartures(station, departures) {
       document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
 
@@ -144,7 +143,6 @@
           const vid = dep.vehicle;
           const res = await fetch(`https://api.irail.be/vehicle/?id=${vid}&format=json&lang=nl`);
           const info = await res.json();
-          // Alle stations verzamelen
           stationNamesMap[vid] = info.stops.stop.map(s => s.station);
         } catch (e) {
           console.warn('Stations ophalen mislukt voor', dep.vehicle);
@@ -158,7 +156,6 @@
         const delay = dep.delay ? `<span class="delay">${dep.delay} min</span>` : '-';
         let stations = '-';
         if (dep.vehicle && stationNamesMap[dep.vehicle]) {
-          // Toon alle volgende stations behalve huidige
           stations = stationNamesMap[dep.vehicle]
             .filter(name => name !== station.name)
             .join(' → ');
@@ -203,13 +200,9 @@
         let html = `<h2>Dienstregeling van trein ${input}</h2>`;
         html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Peron</th></tr>';
         data.stops.stop.forEach(stop => {
-          const arr = stop.arrival
-            ? new Date(stop.arrival * 1000).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'})
-            : '-';
-          const dep = stop.departure
-            ? new Date(stop.departure * 1000).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'})
-            : '-';
-          html += `<tr><td>${stop.station}</td><td>${arr}</td><td>${dep}</td><td>${stop.platform||'-'}</td></tr>`;
+          const arr = stop.arrival ? new Date(stop.arrival * 1000).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}) : '-';
+          const dep = stop.departure ? new Date(stop.departure * 1000).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}) : '-';
+          html += `<tr><td>${stop.station}</td><td>${arr}</td><td>${dep}</td><td>${stop.platform || '-'}</td></tr>`;
         });
         html += '</table>';
         document.getElementById('train-schedule').innerHTML = html;
