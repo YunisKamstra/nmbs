@@ -136,7 +136,7 @@
       const div = document.getElementById('departures');
 
       let html = '<h2>Vertrektijden</h2>';
-      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th></tr>';
+      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Perron</th></tr>';
       departures.slice(0, 20).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
         html += `<tr class="clickable" onclick="zoekTreinViaLink('${dep.vehicle}')"><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
@@ -177,7 +177,7 @@
         div.style.display = 'block';
 
         let html = `<h2>Dienstregeling van trein ${data.vehicle}</h2>`;
-        html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Peron</th></tr>';
+        html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Perron</th></tr>';
         for (const stop of data.stops.stop) {
           const arr = stop.arrival ? new Date(stop.arrival * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
           const dep = stop.departure ? new Date(stop.departure * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'}) : '-';
