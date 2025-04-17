@@ -23,18 +23,6 @@
       border-radius: 6px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    #refresh-btn {
-      position: fixed;
-      top: 60px;
-      right: 10px;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      cursor: pointer;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
     #content-container {
       display: flex;
       justify-content: center;
@@ -43,10 +31,10 @@
       margin-top: 1rem;
     }
     #departures {
-      order: 2;
+      order: 1;
     }
     #train-schedule {
-      order: 1;
+      order: 2;
     }
     #departures, #train-schedule {
       flex: 1 1 45%;
@@ -64,6 +52,10 @@
       padding: 0.5rem;
       text-align: left;
       border-bottom: 1px solid #ccc;
+    }
+    .delay {
+      color: red;
+      font-weight: bold;
     }
     #status {
       text-align: center;
@@ -95,13 +87,11 @@
     <button onclick="zoekTrein()">Zoek</button>
   </div>
 
-  <button id="refresh-btn">Ververs station</button>
-
   <h1>Realtime NMBS Vertrektijden</h1>
   <div id="status">Locatie bepalen...</div>
   <div id="content-container">
-    <div id="train-schedule"></div>
     <div id="departures"></div>
+    <div id="train-schedule"></div>
   </div>
 
   <script>
@@ -120,12 +110,16 @@
       const data = await res.json();
       let nearest = null;
       let minDistance = Infinity;
+
       for (const station of data.station) {
         if (!station.locationX || !station.locationY) continue;
         const dx = lat - parseFloat(station.locationY);
         const dy = lon - parseFloat(station.locationX);
         const distance = Math.sqrt(dx*dx + dy*dy);
-        if (distance < minDistance) { minDistance = distance; nearest = station; }
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = station;
+        }
       }
       return nearest;
     }
@@ -139,13 +133,16 @@
     function displayDepartures(station, departures) {
       document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
       const div = document.getElementById('departures');
+
       let html = `<h2>Vertrektijden van ${station.name}</h2>`;
-      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th></tr>';
+      html += '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th><th>Vertraging</th></tr>';
       departures.slice(0, 20).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
-        html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
+        const delay = dep.delay ? `<span class="delay">${dep.delay} min</span>` : '-';
+        html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td><td>${delay}</td></tr>`;
       });
       html += '</table>';
+
       div.innerHTML = html;
     }
 
@@ -161,20 +158,25 @@
           const departures = await getDepartures(station.name);
           displayDepartures(station, departures);
         } catch (err) {
-          showError('Kon geen vertrektijden ophalen.'); console.error(err);
+          showError('Kon geen vertrektijden ophalen.');
+          console.error(err);
         }
-      }, () => showError('Locatie niet beschikbaar.'));
+      }, err => {
+        showError('Locatie niet beschikbaar.');
+      });
     }
-
-    document.getElementById('refresh-btn').addEventListener('click', locateAndUpdate);
 
     async function zoekTrein() {
       const input = document.getElementById('train-input').value.trim().toUpperCase();
-      const inputFull = input.startsWith('BE.NMBS.') ? input : `BE.NMBS.${input}`;
+      if (!input.startsWith('BE.NMBS.')) inputFull = `BE.NMBS.${input}`;
+      else inputFull = input;
+
       try {
         const res = await fetch(`https://api.irail.be/vehicle/?id=${inputFull}&format=json&lang=nl`);
         const data = await res.json();
+
         const div = document.getElementById('train-schedule');
+
         let html = `<h2>Dienstregeling van trein ${input}</h2>`;
         html += '<table><tr><th>Station</th><th>Aankomst</th><th>Vertrek</th><th>Peron</th></tr>';
         for (const stop of data.stops.stop) {
@@ -185,7 +187,8 @@
         html += '</table>';
         div.innerHTML = html;
       } catch (err) {
-        showError('Trein niet gevonden.'); console.error(err);
+        showError('Trein niet gevonden.');
+        console.error(err);
       }
     }
 
