@@ -134,26 +134,26 @@
       return data.departures.departure;
     }
 
-    // Toon vertrektijden + volgende 5 stations per trein
+    // Toon vertrektijden + alle tussenstations per trein
     async function displayDepartures(station, departures) {
       document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
 
-      // Voor de eerste 5 treinen: haal de vehicle-stops op
+      // Voor alle vertrekkende treinen, haal de tussenstations op
       const stationPathsMap = {};
-      const firstFive = departures.slice(0, 5);
-      await Promise.all(firstFive.map(async dep => {
+      await Promise.all(departures.map(async dep => {
         if (!dep.vehicle) return;
         try {
           const vid = dep.vehicle;
           const res = await fetch(`https://api.irail.be/vehicle/?id=${vid}&format=json&lang=nl`);
           const info = await res.json();
-          // Vind index van huidig station
+          // Haal alle tussenstations
           const stops = info.stops.stop;
-          const idx = stops.findIndex(s => s.station === station.name);
-          if (idx >= 0) {
-            // Neem volgende vijf stations
-            stationPathsMap[vid] = stops.slice(idx + 1, idx + 6).map(s => s.station);
-          }
+          stationPathsMap[vid] = stops.map(s => ({
+            station: s.station,
+            arrival: s.arrival ? new Date(s.arrival * 1000).toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'}) : '-',
+            departure: s.departure ? new Date(s.departure * 1000).toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'}) : '-',
+            platform: s.platform || '-'
+          }));
         } catch (e) {
           console.warn('Paths opvragen mislukt voor', dep.vehicle);
         }
@@ -168,7 +168,11 @@
         const delay = dep.delay ? `<span class="delay">${dep.delay} min</span>` : '-';
         let paths = '-';
         if (dep.vehicle && stationPathsMap[dep.vehicle]) {
-          paths = stationPathsMap[dep.vehicle].join(' → ');
+          // Toon alle tussenstations van de trein
+          const stations = stationPathsMap[dep.vehicle].map(s => 
+            `${s.station} (Aankomst: ${s.arrival}, Vertrek: ${s.departure}, Peron: ${s.platform})`
+          ).join(' → ');
+          paths = stations;
         }
         html += `<tr>
                    <td>${dep.station}</td>
