@@ -77,6 +77,9 @@
       color: #007BFF;
       text-decoration: underline;
     }
+    .selected-row {
+      background-color: #d4edda !important;
+    }
   </style>
 </head>
 <body>
@@ -105,6 +108,8 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    let selectedRow = null;
 
     async function getNearestStation(lat, lon) {
       const res = await fetch('https://api.irail.be/stations/?format=json&lang=nl');
@@ -137,10 +142,10 @@
 
       let html = '<h2>Vertrektijden</h2>';
       html += '<table><tr><th>Type</th><th>Bestemming</th><th>Vertrek</th><th>Perron</th></tr>';
-      departures.slice(0, 20).forEach(dep => {
+      departures.slice(0, 20).forEach((dep, index) => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
         const trainType = dep.vehicle?.split('.')[2] || '-';
-        html += `<tr class="clickable" onclick="zoekTreinViaLink('${dep.vehicle}')"><td>${trainType}</td><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
+        html += `<tr class="clickable" onclick="zoekTreinViaLink('${dep.vehicle}', this)"><td>${trainType}</td><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
       });
       html += '</table>';
 
@@ -193,8 +198,13 @@
       }
     }
 
-    function zoekTreinViaLink(vehicleId) {
+    function zoekTreinViaLink(vehicleId, rowElement) {
       zoekTrein(vehicleId);
+      if (selectedRow) selectedRow.classList.remove('selected-row');
+      if (rowElement) {
+        rowElement.classList.add('selected-row');
+        selectedRow = rowElement;
+      }
     }
 
     locateAndUpdate();
