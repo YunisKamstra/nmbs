@@ -100,10 +100,10 @@
     function displayDepartures(station, departures) {
       document.getElementById('status').innerText = `Dichtstbijzijnd station: ${station.name}`;
       const div = document.getElementById('departures');
-      let html = '<table><tr><th>Bestemming</th><th>Vertrek</th><th>Peron</th></tr>';
+      let html = '<table><tr><th>Treinnummer</th><th>Bestemming</th><th>Vertrek</th><th>Peron</th></tr>';
       departures.slice(0, 10).forEach(dep => {
         const time = new Date(dep.time * 1000).toLocaleTimeString('nl-BE', {hour: '2-digit', minute: '2-digit'});
-        html += `<tr><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
+        html += `<tr><td>${dep.vehicle?.split('.')[1] || '-'}</td><td>${dep.station}</td><td>${time}</td><td>${dep.platform || '-'}</td></tr>`;
       });
       html += '</table>';
       div.innerHTML = html;
